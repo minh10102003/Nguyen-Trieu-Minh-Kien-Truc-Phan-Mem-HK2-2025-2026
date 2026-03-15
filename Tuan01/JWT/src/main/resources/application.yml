@@ -1,0 +1,10 @@
+server:
+  port: 8080
+
+spring:
+  security:
+    oauth2:
+      resourceserver:
+        jwt:
+          # Tr? ??n file Public Key ?? Resource Server xác th?c token
+          public-key-location: classpath:certs/public.pem
