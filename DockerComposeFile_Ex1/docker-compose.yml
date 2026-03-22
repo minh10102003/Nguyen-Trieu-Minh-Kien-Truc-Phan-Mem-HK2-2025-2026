@@ -1,0 +1,8 @@
+version: '3.8' # Phiên bản cấu hình Docker Compose
+
+services:
+  web-nginx:          # Tên dịch vụ (bạn có thể đặt tùy ý)
+    image: nginx      # Tải bản Nginx mới nhất từ Docker Hub
+    ports:
+      - "8080:80"     # Yêu cầu: Map cổng 8080 (máy host) vào cổng 80 (container)
+    restart: always   # Tự động chạy lại nếu có lỗi

@@ -1,0 +1,8 @@
+services:
+  node-app:
+    build: .             # Chỉ định Docker tìm Dockerfile ở thư mục hiện tại
+    ports:
+      - "3000:3000"      # Map cổng 3000 máy thật vào 3000 container
+    volumes:
+      - .:/app           # Đồng bộ code để khi sửa code ở ngoài, container nhận ngay
+      - /app/node_modules # Giữ lại thư viện bên trong container

@@ -1,0 +1,27 @@
+services:
+  # 1. Service MongoDB
+  mongodb:
+    image: mongo:latest
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db    # Yêu cầu 3: Volume cho MongoDB
+    healthcheck:               # Yêu cầu 4: Kiểm tra sức khỏe MongoDB
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # 2. Service Node.js
+  node-app:
+    build: .
+    ports:
+      - "3000:3000"
+    depends_on:
+      mongodb:
+        condition: service_healthy # Yêu cầu 4: Đợi mongodb "khỏe" mới chạy app
+    environment:
+      - MONGO_URL=mongodb://mongodb:27017/my_database
+
+volumes:
+  mongo_data:                  # Khai báo volume để lưu dữ liệu bền vững

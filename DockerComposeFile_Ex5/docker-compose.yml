@@ -1,0 +1,7 @@
+services:
+  cache-redis:
+    image: redis:alpine       # Sử dụng bản alpine để dung lượng nhẹ (khoảng 5MB)
+    container_name: my_redis
+    ports:
+      - "6379:6379"           # Yêu cầu: Map cổng 6379 máy host vào 6379 container
+    restart: always           # Tự động chạy lại nếu container bị lỗi
