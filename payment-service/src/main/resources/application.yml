@@ -1,0 +1,6 @@
+server:
+  port: 8080
+
+services:
+  kitchen:
+    base-url: http://kitchen-service:8080

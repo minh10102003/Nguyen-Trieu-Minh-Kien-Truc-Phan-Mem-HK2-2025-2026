@@ -1,0 +1,4 @@
+com\food\kitchen\KitchenServiceApplication.class
+com\food\kitchen\model\KitchenRequest.class
+com\food\kitchen\controller\KitchenController.class
+com\food\kitchen\service\KitchenService.class

@@ -1,0 +1,43 @@
+CREATE TABLE IF NOT EXISTS orders (
+    id BIGSERIAL PRIMARY KEY,
+    customer_name VARCHAR(255) NOT NULL,
+    item_name VARCHAR(255) NOT NULL,
+    quantity INT NOT NULL,
+    status VARCHAR(50) NOT NULL,
+    created_at TIMESTAMP NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_male (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    gender VARCHAR(20) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_female (
+    id BIGSERIAL PRIMARY KEY,
+    name VARCHAR(255) NOT NULL,
+    gender VARCHAR(20) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_basic (
+    id BIGINT PRIMARY KEY,
+    name VARCHAR(255) NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS user_detail (
+    id BIGINT PRIMARY KEY,
+    address VARCHAR(255) NOT NULL
+);
+
+CREATE SCHEMA IF NOT EXISTS payment_data;
+CREATE SCHEMA IF NOT EXISTS kitchen_data;
+
+CREATE TABLE IF NOT EXISTS payment_data.audit_log (
+    id BIGSERIAL PRIMARY KEY,
+    payload TEXT NOT NULL
+);
+
+CREATE TABLE IF NOT EXISTS kitchen_data.audit_log (
+    id BIGSERIAL PRIMARY KEY,
+    payload TEXT NOT NULL
+);

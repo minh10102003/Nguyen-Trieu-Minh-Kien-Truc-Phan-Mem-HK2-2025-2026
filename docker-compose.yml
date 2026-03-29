@@ -1,0 +1,47 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: food-postgres
+    environment:
+      POSTGRES_DB: food_order
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: 123
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d food_order"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  order-service:
+    build: ./order-service
+    container_name: order-service
+    ports:
+      - "8081:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      payment-service:
+        condition: service_started
+      kitchen-service:
+        condition: service_started
+
+  payment-service:
+    build: ./payment-service
+    container_name: payment-service
+    ports:
+      - "8082:8080"
+
+  kitchen-service:
+    build: ./kitchen-service
+    container_name: kitchen-service
+    ports:
+      - "8083:8080"
+
+volumes:
+  pg_data:
