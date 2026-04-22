@@ -62,6 +62,7 @@ export default function App() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [pendingBookingId, setPendingBookingId] = useState(null);
+  const [successPopup, setSuccessPopup] = useState(null);
 
   const [authOpen, setAuthOpen] = useState(false);
   const [authTab, setAuthTab] = useState('login');
@@ -116,6 +117,12 @@ export default function App() {
     if (!target) return;
     if (target.status === 'PAID') {
       setMessage(`Booking #${target.id} đã thanh toán thành công.`);
+      setSuccessPopup({
+        id: target.id,
+        ticketCode: target.ticketCode || '',
+        seats: seatText(target),
+        movieId: target.movieId,
+      });
       setPendingBookingId(null);
       return;
     }
@@ -836,6 +843,40 @@ export default function App() {
                 </p>
               </div>
             )}
+          </div>
+        </div>
+      ) : null}
+
+      {/* Popup thanh toán thành công */}
+      {successPopup ? (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/75 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="payment-success-title"
+        >
+          <div className="w-full max-w-md rounded-xl border border-emerald-300/50 bg-emerald-950/95 p-6 shadow-2xl">
+            <p className="text-xs font-semibold uppercase tracking-[0.2em] text-emerald-300">Payment Completed</p>
+            <h3 id="payment-success-title" className="mt-2 text-2xl font-bold text-emerald-50">
+              Đặt vé thành công!
+            </h3>
+            <div className="mt-4 space-y-2 text-sm text-emerald-100">
+              <p>Booking: <span className="font-semibold">#{successPopup.id}</span></p>
+              <p>Phim: <span className="font-semibold">#{successPopup.movieId}</span></p>
+              <p>Ghế: <span className="font-semibold">{successPopup.seats}</span></p>
+              {successPopup.ticketCode ? (
+                <p>Mã vé: <span className="font-mono font-semibold">{successPopup.ticketCode}</span></p>
+              ) : null}
+            </div>
+            <div className="mt-6 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setSuccessPopup(null)}
+                className="rounded bg-emerald-500 px-4 py-2 text-sm font-bold text-emerald-950 hover:bg-emerald-400"
+              >
+                Đóng
+              </button>
+            </div>
           </div>
         </div>
       ) : null}
