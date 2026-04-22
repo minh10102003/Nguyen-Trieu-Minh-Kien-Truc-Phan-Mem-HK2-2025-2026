@@ -164,7 +164,8 @@ CREATE TABLE IF NOT EXISTS bookings (
     username VARCHAR(100) NOT NULL,
     movie_id BIGINT NOT NULL,
     showtime_id BIGINT REFERENCES showtimes(id) ON DELETE SET NULL,
-    seat VARCHAR(20), -- backward compatibility with current booking-service
+    seat VARCHAR(200), -- supports multi-seat booking, e.g. A1,A2,A3
+    ticket_code VARCHAR(64) NOT NULL UNIQUE,
     total_amount NUMERIC(12,2) NOT NULL DEFAULT 0 CHECK (total_amount >= 0),
     status VARCHAR(20) NOT NULL DEFAULT 'PENDING',
     expires_at TIMESTAMPTZ,
@@ -177,6 +178,7 @@ CREATE INDEX IF NOT EXISTS idx_bookings_movie_id ON bookings(movie_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_showtime_id ON bookings(showtime_id);
 CREATE INDEX IF NOT EXISTS idx_bookings_status ON bookings(status);
 CREATE INDEX IF NOT EXISTS idx_bookings_created_at ON bookings(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_bookings_ticket_code ON bookings(ticket_code);
 
 -- Booking seat details (supports multi-seat booking)
 CREATE TABLE IF NOT EXISTS booking_items (

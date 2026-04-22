@@ -40,11 +40,18 @@ export function fetchMovies() {
   return request('/api/movies');
 }
 
-export function createBooking(token, movieId, seat) {
+export function createBooking(token, movieId, seats) {
+  const normalizedSeats = Array.isArray(seats)
+    ? seats.map((s) => String(s || '').trim()).filter(Boolean)
+    : [];
   return request('/api/bookings', {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
-    body: JSON.stringify({ movieId, seat }),
+    body: JSON.stringify({
+      movieId,
+      seats: normalizedSeats,
+      seat: normalizedSeats[0] || '',
+    }),
   });
 }
 
@@ -52,4 +59,8 @@ export function fetchBookings(token) {
   return request('/api/bookings', {
     headers: { Authorization: `Bearer ${token}` },
   });
+}
+
+export function fetchBookingByTicketCode(ticketCode) {
+  return request(`/api/bookings/ticket/${encodeURIComponent(ticketCode)}`);
 }

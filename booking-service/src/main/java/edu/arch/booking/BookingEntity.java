@@ -19,8 +19,11 @@ public class BookingEntity {
     @Column(nullable = false)
     private Long movieId;
 
-    @Column(nullable = false)
+    @Column(nullable = false, length = 200)
     private String seat;
+
+    @Column(nullable = false, unique = true, length = 64)
+    private String ticketCode;
 
     @Column(nullable = false)
     private String status;
@@ -67,5 +70,13 @@ public class BookingEntity {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getTicketCode() {
+        return ticketCode;
+    }
+
+    public void setTicketCode(String ticketCode) {
+        this.ticketCode = ticketCode;
     }
 }

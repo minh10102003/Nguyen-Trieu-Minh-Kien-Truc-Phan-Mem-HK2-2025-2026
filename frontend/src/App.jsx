@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import * as api from './api';
+import JsBarcode from 'jsbarcode';
 
 const SHOWTIMES = ['10:00', '13:20', '16:40', '19:30', '22:15'];
 const SEAT_ROWS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H', 'J', 'K'];
@@ -42,6 +43,17 @@ function statusLabel(s) {
   return { text: 'Đang xử lý', className: 'bg-amber-500/15 text-amber-200 ring-amber-500/25' };
 }
 
+function seatText(booking) {
+  if (Array.isArray(booking?.seats) && booking.seats.length > 0) {
+    return booking.seats.join(', ');
+  }
+  return booking?.seat || '—';
+}
+
+function isTicketPaid(ticket) {
+  return ticket?.status === 'PAID';
+}
+
 export default function App() {
   const { token, user, persist, logout } = useSession();
   const [movies, setMovies] = useState([]);
@@ -49,15 +61,19 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [pendingBookingId, setPendingBookingId] = useState(null);
 
   const [authOpen, setAuthOpen] = useState(false);
   const [authTab, setAuthTab] = useState('login');
   const [regUser, setRegUser] = useState({ username: '', password: '' });
   const [loginUser, setLoginUser] = useState({ username: '', password: '' });
+  const [ticketDetail, setTicketDetail] = useState(null);
+  const [ticketLookupLoading, setTicketLookupLoading] = useState(false);
+  const ticketBarcodeRef = useRef(null);
 
   const [selectedMovie, setSelectedMovie] = useState(null);
   const [showtime, setShowtime] = useState(SHOWTIMES[2]);
-  const [selectedSeat, setSelectedSeat] = useState('');
+  const [selectedSeats, setSelectedSeats] = useState([]);
 
   const loadMovies = useCallback(async () => {
     setError('');
@@ -94,10 +110,70 @@ export default function App() {
     return () => clearInterval(id);
   }, [token, loadBookings]);
 
+  useEffect(() => {
+    if (!pendingBookingId) return;
+    const target = bookings.find((b) => b.id === pendingBookingId);
+    if (!target) return;
+    if (target.status === 'PAID') {
+      setMessage(`Booking #${target.id} đã thanh toán thành công.`);
+      setPendingBookingId(null);
+      return;
+    }
+    if (target.status === 'FAILED') {
+      setError(`Booking #${target.id} thanh toán thất bại. Vui lòng thử đặt lại.`);
+      setMessage('');
+      setPendingBookingId(null);
+    }
+  }, [bookings, pendingBookingId]);
+
+  useEffect(() => {
+    if (!ticketDetail?.ticketCode || !ticketBarcodeRef.current) return;
+    JsBarcode(ticketBarcodeRef.current, ticketDetail.ticketCode, {
+      format: 'CODE128',
+      lineColor: '#111111',
+      width: 2,
+      height: 80,
+      displayValue: true,
+      fontSize: 18,
+      textMargin: 4,
+      margin: 0,
+      background: '#f5f5f5',
+    });
+  }, [ticketDetail]);
+
+  useEffect(() => {
+    const path = window.location.pathname || '';
+    const match = path.match(/^\/ticket\/([^/]+)$/i);
+    if (!match) return;
+    const code = decodeURIComponent(match[1]);
+    let cancelled = false;
+    setTicketLookupLoading(true);
+    api.fetchBookingByTicketCode(code)
+      .then((data) => {
+        if (cancelled) return;
+        setTicketDetail(data);
+        setMessage(`Đã mở vé theo mã ${code}.`);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(err?.data?.error || err?.message || 'Không tìm thấy vé từ mã barcode');
+      })
+      .finally(() => {
+        if (!cancelled) setTicketLookupLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   const latest = useMemo(() => bookings[0], [bookings]);
   const selectedMovieTitle = useMemo(
     () => movies.find((m) => m.id === selectedMovie?.id)?.title,
     [movies, selectedMovie]
+  );
+  const movieMap = useMemo(
+    () => new Map(movies.map((m) => [Number(m.id), m])),
+    [movies]
   );
 
   const onRegister = async (e) => {
@@ -145,17 +221,18 @@ export default function App() {
       setError('Chọn phim trước.');
       return;
     }
-    if (!selectedSeat) {
-      setError('Chọn một ghế trên sơ đồ.');
+    if (selectedSeats.length === 0) {
+      setError('Chọn ít nhất một ghế trên sơ đồ.');
       return;
     }
     setLoading(true);
     setError('');
     setMessage('');
     try {
-      await api.createBooking(token, selectedMovie.id, selectedSeat);
+      const created = await api.createBooking(token, selectedMovie.id, selectedSeats);
       setMessage('Đã tạo đơn. Hệ thống đang xác nhận thanh toán…');
-      setSelectedSeat('');
+      setPendingBookingId(created?.id ?? null);
+      setSelectedSeats([]);
       await loadBookings();
     } catch (err) {
       setError(err.data?.error || err.message);
@@ -166,7 +243,7 @@ export default function App() {
 
   const pickMovie = (m) => {
     setSelectedMovie({ id: m.id, title: m.title, posterUrl: m.posterUrl });
-    setSelectedSeat('');
+    setSelectedSeats([]);
     setMessage('');
     setError('');
     requestAnimationFrame(() => {
@@ -175,7 +252,28 @@ export default function App() {
   };
 
   const toggleSeat = (code) => {
-    setSelectedSeat((prev) => (prev === code ? '' : code));
+    setSelectedSeats((prev) =>
+      prev.includes(code) ? prev.filter((s) => s !== code) : [...prev, code]
+    );
+  };
+
+  const movieTitleById = (movieId) => {
+    const m = movieMap.get(Number(movieId));
+    return m?.title || `Phim #${movieId}`;
+  };
+
+  const openTicketDetail = (booking) => {
+    setTicketDetail(booking);
+    if (booking?.ticketCode) {
+      window.history.replaceState({}, '', `/ticket/${encodeURIComponent(booking.ticketCode)}`);
+    }
+  };
+
+  const closeTicketDetail = () => {
+    setTicketDetail(null);
+    if (window.location.pathname.startsWith('/ticket/')) {
+      window.history.replaceState({}, '', '/');
+    }
   };
 
   return (
@@ -267,6 +365,11 @@ export default function App() {
         {message ? (
           <div className="rounded border border-emerald-400/50 bg-emerald-950/90 px-4 py-3 text-sm font-medium text-emerald-50">
             {message}
+          </div>
+        ) : null}
+        {ticketLookupLoading ? (
+          <div className="rounded border border-sky-400/50 bg-sky-950/80 px-4 py-3 text-sm font-medium text-sky-100">
+            Đang tải thông tin vé từ barcode...
           </div>
         ) : null}
 
@@ -410,7 +513,7 @@ export default function App() {
                       <div className="flex gap-1 sm:gap-1.5">
                         {SEAT_LEFT.map((n) => {
                           const code = `${row}${n}`;
-                          const sel = selectedSeat === code;
+                          const sel = selectedSeats.includes(code);
                           return (
                             <button
                               key={code}
@@ -433,7 +536,7 @@ export default function App() {
                       <div className="flex gap-1 sm:gap-1.5">
                         {SEAT_RIGHT.map((n) => {
                           const code = `${row}${n}`;
-                          const sel = selectedSeat === code;
+                          const sel = selectedSeats.includes(code);
                           return (
                             <button
                               key={code}
@@ -460,11 +563,13 @@ export default function App() {
               <div className="mt-10 flex flex-col items-center justify-between gap-4 border-t border-white/10 pt-8 sm:flex-row">
                 <div className="text-center text-sm sm:text-left">
                   <p className="font-medium text-neutral-400">Ghế đã chọn</p>
-                  <p className="font-display text-3xl text-white">{selectedSeat || '—'}</p>
+                  <p className="font-display text-3xl text-white">
+                    {selectedSeats.length > 0 ? selectedSeats.join(', ') : '—'}
+                  </p>
                 </div>
                 <button
                   type="button"
-                  disabled={loading || !selectedSeat}
+                  disabled={loading || selectedSeats.length === 0}
                   onClick={onBook}
                   className="w-full min-w-[200px] rounded bg-cgv-red px-8 py-3 text-sm font-bold uppercase tracking-wide text-white hover:bg-cgv-red-dark disabled:cursor-not-allowed disabled:opacity-40 sm:w-auto"
                 >
@@ -488,7 +593,7 @@ export default function App() {
                   <p className="text-xs uppercase tracking-widest text-cgv-red">Gần nhất</p>
                   <p className="font-display text-4xl text-white">#{latest.id}</p>
                   <p className="text-sm text-neutral-300">
-                    Phim #{latest.movieId} · Ghế {latest.seat} · Suất (demo) {showtime}
+                    Phim #{latest.movieId} · Ghế {seatText(latest)} · Suất (demo) {showtime}
                   </p>
                   <span
                     className={`mt-2 inline-flex w-fit rounded px-3 py-1 text-xs font-bold uppercase ring-1 ${statusLabel(latest.status).className}`}
@@ -516,10 +621,19 @@ export default function App() {
                       <span className="font-mono text-xs text-neutral-400">#{b.id}</span>
                       <p className="text-sm text-white">
                         Phim <span className="font-semibold">#{b.movieId}</span> · Ghế{' '}
-                        <span className="font-semibold text-red-500">{b.seat}</span>
+                        <span className="font-semibold text-red-500">{seatText(b)}</span>
                       </p>
                     </div>
-                    <span className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${st.className}`}>{st.text}</span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => openTicketDetail(b)}
+                        className="rounded border border-white/20 px-3 py-1 text-xs font-semibold text-neutral-200 hover:border-red-500 hover:text-white"
+                      >
+                        Chi tiết
+                      </button>
+                      <span className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${st.className}`}>{st.text}</span>
+                    </div>
                   </li>
                 );
               })}
@@ -638,6 +752,90 @@ export default function App() {
                 </form>
               )}
             </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Modal chi tiết vé */}
+      {ticketDetail ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="ticket-detail-title"
+        >
+          <div className="relative w-full max-w-xl overflow-hidden rounded-xl border border-white/15 bg-zinc-100 text-zinc-900 shadow-2xl">
+            <button
+              type="button"
+              onClick={closeTicketDetail}
+              className="absolute right-3 top-3 rounded p-1 text-2xl leading-none text-zinc-500 hover:text-zinc-900"
+              aria-label="Đóng chi tiết vé"
+            >
+              ×
+            </button>
+
+            <div className="border-b border-zinc-300 bg-white px-6 py-5">
+              <p className="text-xs font-semibold uppercase tracking-[0.2em] text-red-600">Thông tin chi tiết</p>
+              <h3 id="ticket-detail-title" className="mt-1 text-2xl font-extrabold text-zinc-900">
+                {movieTitleById(ticketDetail.movieId)}
+              </h3>
+              <p className="mt-1 text-sm text-zinc-600">Vé #{ticketDetail.id}</p>
+            </div>
+
+            <div className="space-y-3 px-6 py-5 text-sm">
+              <div className="grid grid-cols-2 gap-3 border-b border-zinc-300 pb-2">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-zinc-500">Rạp</p>
+                  <p className="font-semibold text-zinc-900">CGV Vincom (demo)</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase text-zinc-500">Phòng chiếu</p>
+                  <p className="font-semibold text-zinc-900">Cinema 3</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3 border-b border-zinc-300 pb-2">
+                <div>
+                  <p className="text-xs font-semibold uppercase text-zinc-500">Ghế</p>
+                  <p className="font-semibold text-zinc-900">{seatText(ticketDetail)}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold uppercase text-zinc-500">Suất chiếu</p>
+                  <p className="font-semibold text-zinc-900">{showtime} (demo)</p>
+                </div>
+              </div>
+              <div className="flex items-center justify-between border-b border-zinc-300 pb-2">
+                <span className="text-zinc-600">Người đặt</span>
+                <span className="font-semibold text-zinc-900">{ticketDetail.username || user?.username || 'Ẩn danh'}</span>
+              </div>
+              <div className="flex items-center justify-between border-b border-zinc-300 pb-2">
+                <span className="text-zinc-600">Mã vé</span>
+                <span className="font-mono text-xs font-bold text-zinc-900">{ticketDetail.ticketCode || `MBE-${ticketDetail.id}`}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-zinc-600">Trạng thái</span>
+                <span className={`rounded-full px-3 py-1 text-xs font-semibold ring-1 ${statusLabel(ticketDetail.status).className}`}>
+                  {statusLabel(ticketDetail.status).text}
+                </span>
+              </div>
+            </div>
+
+            {isTicketPaid(ticketDetail) ? (
+              <div className="border-t border-zinc-300 bg-zinc-200 px-6 py-4">
+                <p className="mb-2 text-center text-xs font-semibold uppercase tracking-[0.2em] text-zinc-600">Barcode vé</p>
+                <div className="rounded border border-zinc-400 bg-zinc-100 p-3">
+                  <svg ref={ticketBarcodeRef} className="mx-auto w-full max-w-[420px]" />
+                </div>
+                <p className="mt-2 text-center text-xs text-zinc-700">
+                  Quét mã hoặc mở link: <span className="font-mono">{`${window.location.origin}/ticket/${encodeURIComponent(ticketDetail.ticketCode || `MBE-${ticketDetail.id}`)}`}</span>
+                </p>
+              </div>
+            ) : (
+              <div className="border-t border-zinc-300 bg-red-50 px-6 py-4">
+                <p className="text-center text-sm font-semibold text-red-700">
+                  Vé chưa thanh toán thành công, barcode không hợp lệ để quét.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       ) : null}

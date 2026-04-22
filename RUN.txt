@@ -13,6 +13,8 @@ Mật khẩu: (mặc định trong docker-compose: postgres)
 Cách A — PostgreSQL cài trên máy (localhost:5432 như PSQL Workspace):
   1) psql -h localhost -p 5432 -U postgres -d postgres -f postgres-00-create-database.sql
   2) psql -h localhost -p 5432 -U postgres -d movie_booking_eda -f postgres-full-schema.sql
+  2.1) Nếu DB cũ từng tạo enum booking_status, chạy thêm:
+       psql -h localhost -p 5432 -U postgres -d movie_booking_eda -f postgres-fix-legacy-booking-status.sql
   3) Chạy backend (mục 3): application.yml đã trỏ jdbc:postgresql://localhost:5432/movie_booking_eda
      Nếu mật khẩu khác, đặt biến môi trường:
        set SPRING_DATASOURCE_PASSWORD=mat_khau_cua_ban

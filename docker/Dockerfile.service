@@ -12,7 +12,7 @@ COPY movie-service ./movie-service
 COPY booking-service ./booking-service
 COPY payment-service ./payment-service
 RUN mvn -q -pl ${MODULE} -am package -DskipTests
-RUN cp ${MODULE}/target/${MODULE}-1.0.0-SNAPSHOT.jar /out/app.jar
+RUN mkdir -p /out && cp ${MODULE}/target/${MODULE}-1.0.0-SNAPSHOT.jar /out/app.jar
 
 FROM eclipse-temurin:17-jre-alpine
 WORKDIR /app

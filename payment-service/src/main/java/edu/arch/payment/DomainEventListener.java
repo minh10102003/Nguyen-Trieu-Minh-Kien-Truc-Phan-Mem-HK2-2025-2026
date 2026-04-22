@@ -51,29 +51,16 @@ public class DomainEventListener {
             return;
         }
 
-        boolean success = Math.random() >= 0.35;
-        log.info("[PAYMENT_MOCK] bookingId={} outcome={}", bookingId, success ? "SUCCESS" : "FAIL");
-
-        if (success) {
-            DomainEvent out = new DomainEvent(
-                    EventTypes.PAYMENT_COMPLETED,
-                    Map.of(
-                            "bookingId", bookingId,
-                            "userId", toLong(p.get("userId")),
-                            "username", String.valueOf(p.get("username")),
-                            "movieId", toLong(p.get("movieId")),
-                            "seat", String.valueOf(p.get("seat"))));
-            kafkaTemplate.send(KafkaTopics.DOMAIN_EVENTS, String.valueOf(bookingId), out);
-            log.info("[EVENT_PUBLISHED] type={} bookingId={}", EventTypes.PAYMENT_COMPLETED, bookingId);
-        } else {
-            DomainEvent out = new DomainEvent(
-                    EventTypes.BOOKING_FAILED,
-                    Map.of(
-                            "bookingId", bookingId,
-                            "reason", "Mock payment declined"));
-            kafkaTemplate.send(KafkaTopics.DOMAIN_EVENTS, String.valueOf(bookingId), out);
-            log.info("[EVENT_PUBLISHED] type={} bookingId={}", EventTypes.BOOKING_FAILED, bookingId);
-        }
+        DomainEvent out = new DomainEvent(
+                EventTypes.PAYMENT_COMPLETED,
+                Map.of(
+                        "bookingId", bookingId,
+                        "userId", toLong(p.get("userId")),
+                        "username", String.valueOf(p.get("username")),
+                        "movieId", toLong(p.get("movieId")),
+                        "seat", String.valueOf(p.get("seat"))));
+        kafkaTemplate.send(KafkaTopics.DOMAIN_EVENTS, String.valueOf(bookingId), out);
+        log.info("[EVENT_PUBLISHED] type={} bookingId={}", EventTypes.PAYMENT_COMPLETED, bookingId);
     }
 
     private void handlePaymentCompleted(DomainEvent event) {
