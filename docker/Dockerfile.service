@@ -1,0 +1,20 @@
+# Build one Spring Boot module from repo root: docker compose build --build-arg MODULE=user-service
+ARG MODULE=user-service
+
+FROM maven:3.9.6-eclipse-temurin-17-alpine AS build
+ARG MODULE
+WORKDIR /w
+COPY pom.xml .
+COPY common-events ./common-events
+COPY gateway ./gateway
+COPY user-service ./user-service
+COPY movie-service ./movie-service
+COPY booking-service ./booking-service
+COPY payment-service ./payment-service
+RUN mvn -q -pl ${MODULE} -am package -DskipTests
+RUN cp ${MODULE}/target/${MODULE}-1.0.0-SNAPSHOT.jar /out/app.jar
+
+FROM eclipse-temurin:17-jre-alpine
+WORKDIR /app
+COPY --from=build /out/app.jar app.jar
+ENTRYPOINT ["java", "-jar", "app.jar"]

@@ -1,0 +1,65 @@
+Movie Booking — Event-Driven Architecture (Java 17 + React + Tailwind)
+Đường dẫn dự án: D:\movie-booking-eda
+
+YÊU CẦU: JDK 17, Maven 3.9+, Node 20+, Docker (tuỳ chọn).
+
+================================================================================
+0) PostgreSQL — một database dùng chung cho user / movie / booking
+================================================================================
+Database: movie_booking_eda
+User:     postgres
+Mật khẩu: (mặc định trong docker-compose: postgres)
+
+Cách A — PostgreSQL cài trên máy (localhost:5432 như PSQL Workspace):
+  1) psql -h localhost -p 5432 -U postgres -d postgres -f postgres-00-create-database.sql
+  2) psql -h localhost -p 5432 -U postgres -d movie_booking_eda -f postgres-full-schema.sql
+  3) Chạy backend (mục 3): application.yml đã trỏ jdbc:postgresql://localhost:5432/movie_booking_eda
+     Nếu mật khẩu khác, đặt biến môi trường:
+       set SPRING_DATASOURCE_PASSWORD=mat_khau_cua_ban
+
+Cách B — Chỉ dùng Docker (Postgres trong compose, cổng máy chủ 5433 để khỏi đụng PG cài sẵn):
+  docker compose up -d zookeeper kafka postgres
+  (Lần đầu Postgres tự chạy postgres-full-schema.sql qua thư mục initdb.)
+  Các service trong Docker dùng hostname: postgres, cổng nội bộ 5432 — đã cấu hình sẵn.
+
+Nếu đã từng chạy Docker Postgres và muốn tạo lại DB từ đầu:
+  docker compose down -v
+  docker compose up -d postgres
+  (tuỳ chọn) sau đó bật tiếp kafka + các service.
+
+================================================================================
+1) Chạy Kafka (Docker)
+================================================================================
+   cd /d D:\movie-booking-eda
+   docker compose up -d zookeeper kafka
+
+2) Build backend
+   mvn -DskipTests package
+
+3) Chạy từng service (mỗi terminal một lệnh), thứ tự gợi ý:
+   — Trước đó bảo đảm Postgres đã tạo DB + schema (mục 0).
+   java -jar user-service\target\user-service-1.0.0-SNAPSHOT.jar
+   java -jar movie-service\target\movie-service-1.0.0-SNAPSHOT.jar
+   java -jar booking-service\target\booking-service-1.0.0-SNAPSHOT.jar
+   java -jar payment-service\target\payment-service-1.0.0-SNAPSHOT.jar
+   java -jar gateway\target\gateway-1.0.0-SNAPSHOT.jar
+
+4) Frontend (cổng 8085 — chỉ gọi API qua proxy tới gateway 8080)
+   cd frontend
+   npm install
+   npm run dev
+   Mở http://localhost:8085
+
+5) Chạy full stack bằng Docker (sau khi đã có package-lock ở frontend)
+   docker compose up --build
+   Frontend: http://localhost:8085
+   Postgres trên máy (từ host): localhost:5433  user postgres / postgres
+
+Luồng sự kiện (Kafka topic: movie-booking.domain.events):
+- USER_REGISTERED: user-service publish sau đăng ký.
+- BOOKING_CREATED: booking-service publish sau POST /bookings.
+- payment-service consume BOOKING_CREATED → mock thanh toán → PAYMENT_COMPLETED hoặc BOOKING_FAILED.
+- booking-service consume PAYMENT_COMPLETED/BOOKING_FAILED → cập nhật trạng thái vé.
+- payment-service consume PAYMENT_COMPLETED → log thông báo (notification).
+
+Không có HTTP trực tiếp giữa user/movie/booking/payment; chỉ publish/consume qua broker.
